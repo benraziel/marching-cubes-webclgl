@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="description" content="Live code" />
+    <meta charset=utf-8 />
+
+    <title>Marching cubes test</title>
+
+    <!--<script src="WebCLGLUtils.class.js"></script>-->
+    <!--<script src="WebCLGLBuffer.class.js"></script>-->
+    <!--<script src="WebCLGLKernel.class.js"></script>-->
+    <!--<script src="WebCLGL.class.js"></script>-->
+    <script src="http://rawgithub.com/3DRoberto/webclgl/master/WebCLGL_2.0/WebCLGLUtils.class.js"></script>
+    <script src="http://rawgithub.com/3DRoberto/webclgl/master/WebCLGL_2.0/WebCLGLBuffer.class.js"></script>
+    <script src="http://rawgithub.com/3DRoberto/webclgl/master/WebCLGL_2.0/WebCLGLKernel.class.js"></script>
+    <script src="http://rawgithub.com/3DRoberto/webclgl/master/WebCLGL_2.0/WebCLGL.class.js"></script>
+
+</head>
+<body style="background-color:#FFF">
+
+A<div id="DIVA"></div>
+<br />
+B<div id="DIVB"></div>
+<br />
+A+B CPU<div id="DIVC_CPU"></div>
+<br />
+GPU RESULT<div id="DIVC_GPU"></div>
+
+<script>
+    // FILL ARRAYS A AND B
+    var _length = 16;
+    var A = [];
+    var B = [];
+
+    for (var x = 0; x < _length; x++) {
+        for (var y = 0; y < _length; y++) {
+            for (var z = 0; z < _length; z++) {
+                A.push(x);
+                A.push(y);
+                A.push(z);
+                A.push(0);
+            }
+        }
+    }
+
+    document.getElementById('DIVA').innerText = A;
+    document.getElementById('DIVB').innerText = B;
+
+    // PERFORM A + B + SIMPLE NUM WITH GPU
+    webCLGL = new WebCLGL();
+    var offset = 16.0; // 0 = to handle values from -256.0 to 256.0
+    var buffer_A = webCLGL.createBuffer(Math.pow(_length, 3), "FLOAT4", offset);
+    var buffer_C = webCLGL.createBuffer(Math.pow(_length, 3), 'FLOAT', offset);
+    webCLGL.enqueueWriteBuffer(buffer_A, A);
+
+    var kernel_source = ''+
+            'void main(float4* A,'+
+            'float resolution) {'+
+            'vec2 pos = get_global_id();'+
+            'out_float = surfaceFunc(A[pos].xyz);'+
+            '}';
+
+    var kernel_header = ''+
+            'float surfaceFunc(vec3 pos){'+
+            '   return 1.0;'+
+            '   vec3 center = vec3(resolution / 2.0, resolution / 2.0, resolution / 2.0);'+
+            '   float distanceFromCenter = distance(pos, center);'+
+            '   return clamp(distanceFromCenter - center.x, 0.0, 1.0);'+
+            '} ';
+
+    var kernel_add = webCLGL.createKernel(kernel_source, kernel_header);
+    kernel_add.setKernelArg(0, buffer_A);
+    kernel_add.setKernelArg(1, _length);
+    kernel_add.compile();
+
+    webCLGL.enqueueNDRangeKernel(kernel_add, buffer_C);
+
+    var C_GPU = webCLGL.enqueueReadBuffer_Float(buffer_C);
+    document.getElementById('DIVC_GPU').innerText = C_GPU;
+</script>
+</body>
+</html>
